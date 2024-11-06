@@ -62,15 +62,15 @@ ssize_t device_read(struct file *filep, char *user_buffer, size_t len, loff_t *o
 //	return 0;
 //}
 
-static int init(void) {
+static int m_init(void) {
 	register_device();
 	return 0;
 }
 
-static void exit(void) {
+static void m_exit(void) {
 	unregister_device();
 	return;
 }
 
-module_init(init);
-module_exit(exit);
+module_init(m_init);
+module_exit(m_exit);
