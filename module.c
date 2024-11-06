@@ -1,6 +1,7 @@
 #include "linux/init.h"
 #include "linux/module.h"
 #include "linux/fs.h"
+#include "linux/miscdevice.h"
 
 #define DEVICE_NAME "dinologger";
 #define LOG(msg) printk(KERN_NOTICE #DEVICE_NAME #msg "\n");
@@ -41,12 +42,12 @@ ssize_t device_read(struct file *filep, char *user_buffer, size_t len, loff_t *o
 	if (*offset >= buffer_size)
 		return 0;
 	if (*offset + len > buffer_size)
-		len = buffer_size - *position;
+		len = buffer_size - *offset;
 	if (copy_to_user(usr_buffer, buffer + *offset, len) != 0)
 		return -EFAULT;
 
-	*position += len;
-	return count;
+	*offset += len;
+	return len;
 }
 
 //int register_device() {
