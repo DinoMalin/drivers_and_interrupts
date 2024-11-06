@@ -3,11 +3,16 @@
 #include "linux/fs.h"
 #include "linux/miscdevice.h"
 
-#define DEVICE_NAME "dinologger";
-#define LOG(msg) printk(KERN_NOTICE #DEVICE_NAME #msg "\n");
-#define LOGF(msg, ...) printk(KERN_NOTICE #DEVICE_NAME #msg "\n", __VA_ARGS__);
+#define DEVICE_NAME "dinologger"
+#define LOG(msg) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n")
+#define LOGF(msg, ...) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n", __VA_ARGS__)
+
+MODULE_LICENSE ("GPL");
+MODULE_AUTHOR("DinoMalin");
 
 ssize_t device_read(struct file *, char *, size_t, loff_t *);
+int register_device(void);
+void unregister_device(void);
 
 static const char buffer[] = "I'm a dinosaur";
 int buffer_size = sizeof(buffer);
@@ -18,7 +23,7 @@ static struct file_operations fops = {
 };
 
 struct miscdevice misc;
-int register_device() {
+int register_device(void) {
 	misc.minor = MISC_DYNAMIC_MINOR;
 	misc.name = DEVICE_NAME;
 	misc.fops = &fops;
@@ -28,10 +33,10 @@ int register_device() {
 		LOGF("failed to register - error code: %d", res);
 		return res;
 	}
-	LOGF("registered device");
+	LOG("registered device");
 	return 0;
 }
-void unregister_device() {
+void unregister_device(void) {
 	LOG("unregistering");
 	misc_deregister(&misc);
 }
@@ -43,31 +48,20 @@ ssize_t device_read(struct file *filep, char *user_buffer, size_t len, loff_t *o
 		return 0;
 	if (*offset + len > buffer_size)
 		len = buffer_size - *offset;
-	if (copy_to_user(usr_buffer, buffer + *offset, len) != 0)
+	if (copy_to_user(user_buffer, buffer + *offset, len) != 0)
 		return -EFAULT;
 
 	*offset += len;
 	return len;
 }
 
-//int register_device() {
-//	LOG("registering device");
-//	int res = register_chrdev(0, DEVICE_NAME, &fops);
-//	if (res < 0) {
-//		LOGF("failed to register - error code: %d", res);
-//		return res;
-//	}
-//	major_nb = result;
-//	LOG("registered - major number: %d", major_nb);
-//	return 0;
-//}
-
-static int m_init(void) {
+int __init m_init(void) {
+	LOG("trying to init");
 	register_device();
 	return 0;
 }
 
-static void m_exit(void) {
+void __exit m_exit(void) {
 	unregister_device();
 	return;
 }
