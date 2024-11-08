@@ -1,15 +1,6 @@
-#include "linux/init.h"
-#include "linux/module.h"
-#include "linux/fs.h"
-#include "linux/miscdevice.h"
-#include "linux/keyboard.h"
+#include "dinologger.h"
 
-#define DEVICE_NAME "dinologger"
-#define LOG(msg) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n")
-#define LOGF(msg, ...) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n", __VA_ARGS__)
-
-MODULE_LICENSE ("GPL");
-MODULE_AUTHOR("DinoMalin");
+unsigned char kbus[256] = {US_KBMAP};
 
 ssize_t device_read(struct file *, char *, size_t, loff_t *);
 
@@ -17,12 +8,6 @@ int register_device(void);
 void unregister_device(void);
 int __init m_init(void);
 void __exit m_exit(void);
-
-static int keyboard_notifier_call(struct notifier_block *nb,
-								  unsigned long code, void *_param);
-struct notifier_block keyboard_notifier_block = {
-	.notifier_call = keyboard_notifier_call
-};
 
 static const char buffer[] = "I'm a dinosaur";
 int buffer_size = sizeof(buffer);
@@ -65,11 +50,11 @@ ssize_t device_read(struct file *filep, char *user_buffer, size_t len, loff_t *o
 	return len;
 }
 
-static int keyboard_notifier_call(struct notifier_block *nb,
-								  unsigned long code, void *_param) {
-	struct keyboard_notifier_param *param = _param;
-	LOGF("keyboard entry ! code: %u", param->value);
-	return 0;
+static irqreturn_t irq_handler(int irq, void *dev_id) {
+	int scancode = inb(0x60);
+	int release = scancode & RELEASE;
+	LOGF("character: %c | scancode: %d | mode: %s", kbus[scancode], scancode, release ? "RELEASE" : "PRESS");
+	return IRQ_NONE;
 }
 
 int __init m_init(void) {
@@ -78,18 +63,23 @@ int __init m_init(void) {
 
 	err = register_device();
 	if (err)
-		return 0;
-	err = register_keyboard_notifier(&keyboard_notifier_block);
-	if (err)
-		unregister_device();
+		return err;
+	err = request_irq(1, irq_handler, IRQF_SHARED, "dino_keyboard", (void *)irq_handler);
+	if (err) {
+		LOG("request_irq failed");
+		return err;
+	}
 	return 0;
 }
 
 void __exit m_exit(void) {
 	unregister_device();
-	unregister_keyboard_notifier(&keyboard_notifier_block);
+	free_irq(1, (void *)irq_handler);
 	return;
 }
+
+MODULE_LICENSE ("GPL");
+MODULE_AUTHOR("DinoMalin");
 
 module_init(m_init);
 module_exit(m_exit);
