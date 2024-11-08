@@ -53,7 +53,9 @@ ssize_t device_read(struct file *filep, char *user_buffer, size_t len, loff_t *o
 static irqreturn_t irq_handler(int irq, void *dev_id) {
 	int scancode = inb(0x60);
 	int release = scancode & RELEASE;
-	LOGF("character: %s | scancode: %d | mode: %s", kbus[scancode], scancode, release ? "RELEASE" : "PRESS");
+	scancode &= CANCEL_RELEASE;
+
+	LOGF("%s (%d) %s", kbus[scancode], scancode, release ? "Released" : "Pressed");
 	return IRQ_NONE;
 }
 
