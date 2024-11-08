@@ -55,7 +55,10 @@ static irqreturn_t irq_handler(int irq, void *dev_id) {
 	int release = scancode & RELEASE;
 	scancode &= CANCEL_RELEASE;
 
-	LOGF("%s (%d) %s", kbus[scancode], scancode, release ? "Released" : "Pressed");
+	struct rtc_time time = rtc_ktime_to_tm(ktime_get_real());
+	WINTER_TIME(time);
+
+	LOGF("[%ptRt] %s (%d) %s", &time, kbus[scancode], scancode, release ? "Released" : "Pressed");
 	return IRQ_NONE;
 }
 

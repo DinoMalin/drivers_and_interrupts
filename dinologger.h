@@ -6,6 +6,8 @@
 #include "linux/miscdevice.h"
 #include "linux/interrupt.h"
 #include "asm/io.h"
+#include "linux/ktime.h"
+#include "linux/rtc.h"
 
 #define DEVICE_NAME "dinologger"
 #define LOG(msg) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n")
@@ -13,6 +15,10 @@
 
 #define RELEASE 0b10000000
 #define CANCEL_RELEASE 0b01111111
+#define WINTER_TIME(x)															\
+		if (x.tm_yday <= 89 || x.tm_yday >= 299) {									\
+			x.tm_hour = (x.tm_hour + 1) % 24;									\
+		}
 
 #define unmapped_end                                                           \
 	0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, \
