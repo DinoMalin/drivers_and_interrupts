@@ -17,6 +17,11 @@
 
 #define STATE(release) (release ? "Released" : "Pressed")
 #define NAME(scancode) (scancode >= 0 && scancode < 97 ? kbus[scancode] : kbus[0])
+#define STAT(scancode) (scancode >= 0 && scancode < 97 ? stats[scancode]++ : stats[0]++)
+#define MAPPED(scancode)	((scancode > 0 && scancode < 76)	\
+						||	(scancode > 76 && scancode < 84)	\
+						||	(scancode > 86 && scancode < 89)	\
+						||	(scancode == 96))
 
 #define WINTER_TIME(x)															\
 		if (x.tm_yday <= 89 || x.tm_yday >= 299) {									\

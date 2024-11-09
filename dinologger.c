@@ -1,6 +1,7 @@
 #include "dinologger.h"
 
-unsigned char *kbus[256] = {US_KBMAP};
+unsigned char *kbus[] = {US_KBMAP};
+unsigned int stats[97] = {0};
 
 ssize_t device_read(struct file *, char *, size_t, loff_t *);
 
@@ -103,6 +104,8 @@ void add_entry(int scancode, int release, struct rtc_time *time) {
 	cd_file_size += len + 1;
 
 	LOGF("%s", entry);
+	if (!release)
+		STAT(scancode);
 }
 
 static irqreturn_t irq_handler(int irq, void *dev_id) {
@@ -139,6 +142,19 @@ int __init m_init(void) {
 
 void __exit m_exit(void) {
 	unregister_device();
+
+	int max = 0;
+	int sum = 0;
+	for (int i = 0; i < 97; i++) {
+		if (MAPPED(i)) {
+			if (stats[i] > stats[max])
+				max = i;
+			sum += stats[i];
+		}
+	}
+	LOGF("you pressed %d keys", sum);
+	LOGF("most pressed key is '%s': %d times !", kbus[max], stats[max]);
+
 	free_irq(1, (void *)irq_handler);
 	kfree(character_device_file);
 	return;
