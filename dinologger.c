@@ -3,19 +3,9 @@
 unsigned char *kbus[] = {US_KBMAP};
 unsigned int stats[97] = {0};
 
-ssize_t device_read(struct file *, char *, size_t, loff_t *);
-
-int register_device(void);
-void unregister_device(void);
-int __init m_init(void);
-void __exit m_exit(void);
-void add_entry(int scancode, int release, struct rtc_time *time);
-char *strdup(char const *str);
-char *strjoin_nl(char const *str1, char const *str2);
-char *clean_join(char *str1, char *str2);
-
-char *character_device_file;
-int cd_file_size = 0;
+char *cd_file[BUFFER_SIZE];
+int cd_size = 0;
+int cd_index = 0;
 
 static struct file_operations fops = {
 	.owner = THIS_MODULE,
@@ -34,38 +24,49 @@ char *strdup(char const *str) {
 	return result;
 }
 
-char *strjoin_nl(char const *str1, char const *str2) {
-	size_t	len_str1 = strlen(str1);
-	size_t	len_str2 = strlen(str2);
-
-	char *result = kmalloc((len_str1 + len_str2 + 2) * sizeof(char), GFP_KERNEL);
-	if (!result)
-		return (NULL);
-
-	for (int i = 0; i < len_str1; i++) {
-		result[i] = str1[i];
-	}
-	for (int i = 0; i < len_str2; i++) {
-		result[i + len_str1] = str2[i];
-	}
-
-	result[len_str1 + len_str2] = '\n';
-	result[len_str1 + len_str2 + 1] = '\0';
-	return (result);
-}
-
 ssize_t device_read(struct file *filep, char *u_buffer, size_t len, loff_t *offset) {
-	LOG("reading device");
-
-	if (*offset >= cd_file_size)
+	if (*offset >= cd_size)
 		return 0;
-	if (*offset + len > cd_file_size)
-		len = cd_file_size - *offset;
-	if (copy_to_user(u_buffer, character_device_file + *offset, len) != 0)
-		return -EFAULT;
+	if (*offset + len > cd_size)
+		len = cd_size - *offset;
 
-	*offset += len;
-	return len;
+	int i = 0;
+	int j = 0;
+	int total = 0;
+	int bytes = 0;
+
+	while (i < cd_index) {
+		int len_str = strlen(cd_file[i]) + 1;
+		if (total + len_str >= *offset) {
+			j = *offset - total;
+			break;
+		}
+		total += len_str;
+		i++;
+	}
+
+	while (i < cd_index && len > 0) {
+		while (cd_file[i][j]) {
+			if (put_user(cd_file[i][j], u_buffer++))
+				return -EFAULT;
+			j++;
+			bytes++;
+			len--;
+		}
+
+		if (len > 0) {
+			if (put_user('\n', u_buffer++))
+				return -EFAULT;
+			len--;
+			bytes++;
+		}
+
+		j = 0;
+		i++;
+	}
+
+	*offset += bytes;
+	return bytes;
 }
 
 struct miscdevice misc;
@@ -87,6 +88,19 @@ void unregister_device(void) {
 	misc_deregister(&misc);
 }
 
+void add_to_cd(char *str) {
+	if (cd_index < BUFFER_SIZE - 1) {
+		cd_file[cd_index] = str;
+		cd_index++;
+	} else {
+		kfree(cd_file[0]);
+		for (int i = 0; i < cd_index; i++) {
+			cd_file[i] = cd_file[i + 1];
+		}
+		cd_file[cd_index] = str;
+	}
+}
+
 void add_entry(int scancode, int release, struct rtc_time *time) {
 	char entry[42];
 	int len = scnprintf(entry, 42,
@@ -95,13 +109,12 @@ void add_entry(int scancode, int release, struct rtc_time *time) {
 
 	if (len <= 0)
 		return ;
-	char *join = strjoin_nl(character_device_file, entry);
-	if (!join)
+	char *log = strdup(entry);
+	if (!log)
 		return ;
 
-	kfree(character_device_file);
-	character_device_file = join;
-	cd_file_size += len + 1;
+	add_to_cd(log);
+	cd_size += len + 1;
 
 	LOGF("%s", entry);
 	if (!release)
@@ -132,11 +145,6 @@ int __init m_init(void) {
 		LOG("request_irq failed");
 		return err;
 	}
-	character_device_file = strdup("");
-	if (!character_device_file) {
-		LOG("buffer init failed");
-		return err;
-	}
 	return 0;
 }
 
@@ -152,11 +160,15 @@ void __exit m_exit(void) {
 			sum += stats[i];
 		}
 	}
+
+	int ratio = (stats[max]*100)/sum;
 	LOGF("you pressed %d keys", sum);
-	LOGF("most pressed key is '%s': %d times !", kbus[max], stats[max]);
+	LOGF("most pressed key is '%s': %d times (%d%%) !", kbus[max], stats[max], ratio);
 
 	free_irq(1, (void *)irq_handler);
-	kfree(character_device_file);
+	for (int i = 0; i < cd_index; i++) {
+		kfree(cd_file[i]);
+	}
 	return;
 }
 

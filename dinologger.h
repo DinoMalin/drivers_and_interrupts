@@ -11,6 +11,19 @@
 #include "linux/slab.h"
 #include "linux/kernel.h"
 
+int register_device(void);
+void unregister_device(void);
+int __init m_init(void);
+void __exit m_exit(void);
+
+ssize_t device_read(struct file *, char *, size_t, loff_t *);
+void add_entry(int scancode, int release, struct rtc_time *time);
+void add_to_cd(char *str);
+
+char *strdup(char const *str);
+
+#define BUFFER_SIZE 4096
+
 #define DEVICE_NAME "dinologger"
 #define LOG(msg) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n")
 #define LOGF(msg, ...) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n", __VA_ARGS__)
