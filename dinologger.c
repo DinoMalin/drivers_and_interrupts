@@ -185,10 +185,13 @@ void __exit m_exit(void) {
 			sum += stats[i];
 		}
 	}
-
-	int ratio = (stats[max]*100)/sum;
-	LOGF("you pressed %d keys", sum);
-	LOGF("most pressed key is '%s': %d times (%d%%) !", kbus[max], stats[max], ratio);
+	if (sum > 0) {
+		int ratio = (stats[max]*100)/sum;
+		LOGF("you pressed %d keys", sum);
+		LOGF("most pressed key is '%s': %d times (%d%%) !", kbus[max], stats[max], ratio);
+	} else {
+		LOG("you pressed no keys :(");
+	}
 
 	free_irq(1, (void *)irq_handler);
 	for (int i = 0; i < device_index; i++) {
