@@ -19,8 +19,7 @@ static int device_open(struct inode *inode, struct file *file);
 static int device_release(struct inode *inode, struct file *file);
 
 #define DEVICE_NAME "dinologger"
-#define LOG(msg) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n")
-#define LOGF(msg, ...) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n", __VA_ARGS__)
+#define LOG(msg, ...) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n", ## __VA_ARGS__)
 
 #define STATE(release) (release ? "Released" : "Pressed")
 #define NAME(scancode) (scancode >= 0 && scancode < 97 ?		\
@@ -40,7 +39,7 @@ static int device_release(struct inode *inode, struct file *file);
 
 #define RELEASE 0b10000000
 #define CANCEL_RELEASE 0b01111111
-#define BUFFER_SIZE 4096
+#define BUFFER_SIZE 256
 
 #define UNMAPPED "Unmapped"
 

