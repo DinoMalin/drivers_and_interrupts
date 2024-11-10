@@ -68,7 +68,7 @@ static ssize_t device_read(struct file *filep, char *u_buffer, size_t len, loff_
 
 	// write everything in the user buffer
 	while (i < device_index && len > 0) {
-		while (device_file[i][j]) {
+		while (device_file[i][j] && len > 0) {
 			if (put_user(device_file[i][j], u_buffer++))
 				return -EFAULT;
 			j++;
