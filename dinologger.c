@@ -8,9 +8,12 @@ int device_size = 0;
 int device_index = 0;
 
 struct miscdevice misc;
+int misc_open = 0;
 static struct file_operations fops = {
 	.owner = THIS_MODULE,
 	.read = device_read,
+	.open = device_open,
+	.release = device_release,
 };
 
 /* === UTILS === */
@@ -29,7 +32,19 @@ static char *strdup(char const *str) {
 
 /* === MISCDEVICE === */
 
-ssize_t device_read(struct file *filep, char *u_buffer, size_t len, loff_t *offset) {
+static int device_open(struct inode *inode, struct file *file) {
+	if (misc_open)
+		return -EBUSY;
+	misc_open++;
+	return 0;
+}
+
+static int device_release(struct inode *inode, struct file *file) {
+	misc_open--;
+	return 0;
+}
+
+static ssize_t device_read(struct file *filep, char *u_buffer, size_t len, loff_t *offset) {
 	if (*offset >= device_size)
 		return 0;
 	if (*offset + len > device_size)

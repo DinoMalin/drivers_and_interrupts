@@ -13,7 +13,10 @@
 
 int __init m_init(void);
 void __exit m_exit(void);
-ssize_t device_read(struct file *, char *, size_t, loff_t *);
+
+static ssize_t device_read(struct file *, char *, size_t, loff_t *);
+static int device_open(struct inode *inode, struct file *file);
+static int device_release(struct inode *inode, struct file *file);
 
 #define DEVICE_NAME "dinologger"
 #define LOG(msg) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n")
