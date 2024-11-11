@@ -59,7 +59,6 @@ static void log_stats(void) {
 }
 
 static void trace_back(void) {
-	TRACE_BACK("dinologger: ");
 	log_node *pos;
 	log_node *tmp;
 
@@ -86,6 +85,7 @@ static int ct_open(struct inode *inode, struct file *file) {
 	if (misc_open)
 		return -EBUSY;
 	misc_open++;
+	file->private_data = NULL;
 	return seq_open(file, &seq_ops);
 }
 

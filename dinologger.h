@@ -37,7 +37,6 @@ static int seq_show(struct seq_file *seq, void *v);
 #define DEVICE_NAME "dinologger"
 #define LOG_FILE "/tmp/dinologs"
 #define LOG(msg, ...) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n", ## __VA_ARGS__)
-#define TRACE_BACK(msg, ...) printk(KERN_CONT msg, ## __VA_ARGS__)
 
 #define STATE(release) (release ? "Released" : "Pressed")
 #define NAME(scancode) (scancode >= 0 && scancode < 97 ?		\
