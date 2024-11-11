@@ -12,6 +12,8 @@
 #include "linux/kernel.h"
 #include "linux/list.h"
 #include "linux/seq_file.h"
+#include "linux/fs.h"
+#include "linux/err.h"
 
 typedef struct log_node {
 	struct rtc_time time;
@@ -33,6 +35,7 @@ static void *ct_seq_next(struct seq_file *s, void *v, loff_t *pos);
 static int seq_show(struct seq_file *seq, void *v);
 
 #define DEVICE_NAME "dinologger"
+#define LOG_FILE "/tmp/dinologs"
 #define LOG(msg, ...) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n", ## __VA_ARGS__)
 #define TRACE_BACK(msg, ...) printk(KERN_CONT msg, ## __VA_ARGS__)
 

