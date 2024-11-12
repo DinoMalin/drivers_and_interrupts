@@ -28,6 +28,7 @@ int __init m_init(void);
 void __exit m_exit(void);
 
 static int ct_open(struct inode *inode, struct file *file);
+static int ct_release(struct inode *inode, struct file *file);
 static void *seq_start(struct seq_file *s, loff_t *pos);
 static void seq_stop(struct seq_file *_s, void *_v);
 static void *ct_seq_next(struct seq_file *s, void *v, loff_t *pos);

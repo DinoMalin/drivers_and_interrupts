@@ -14,7 +14,7 @@ static struct file_operations fops = {
 	.open = ct_open,
 	.read = seq_read,
 	.llseek = seq_lseek,
-	.release = seq_release,
+	.release = ct_release,
 };
 static const struct seq_operations seq_ops = {
         .start = seq_start,
@@ -89,8 +89,12 @@ static int ct_open(struct inode *inode, struct file *file) {
 	return seq_open(file, &seq_ops);
 }
 
-static void *seq_start(struct seq_file *s, loff_t *pos) {
+static int ct_release(struct inode *inode, struct file *file) {
 	misc_open = 0;
+	return seq_release(inode, file);
+}
+
+static void *seq_start(struct seq_file *s, loff_t *pos) {
 	return seq_list_start(&file_list, *pos);
 }
 
