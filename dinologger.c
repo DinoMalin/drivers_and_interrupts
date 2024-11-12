@@ -31,7 +31,7 @@ static log_node *lst_new(struct rtc_time *_time, int _scancode, int _release) {
 	if (!new)
 		return NULL;
 
-	new->time = *_time;
+	sprintf(new->time, "%ptRt", _time);
 	new->scancode = _scancode;
 	new->release = _release;
 
@@ -106,8 +106,8 @@ static void *ct_seq_next(struct seq_file *s, void *v, loff_t *pos) {
 
 static int seq_show(struct seq_file *seq, void *v) {
 	log_node *entry = list_entry(v, log_node, list);
-	seq_printf(seq, "[%ptRt] %s (%d) %s\n",
-			&entry->time, NAME(entry->scancode),
+	seq_printf(seq, "[%s] %s (%d) %s\n",
+			entry->time, NAME(entry->scancode),
 			entry->scancode, STATE(entry->release));
 	return 0;
 }

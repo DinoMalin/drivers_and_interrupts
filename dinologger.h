@@ -16,7 +16,7 @@
 #include "linux/err.h"
 
 typedef struct log_node {
-	struct rtc_time time;
+	char time[9];
 	int scancode;
 	int release;
 
